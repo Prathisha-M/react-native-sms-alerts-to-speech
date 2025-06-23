@@ -1,40 +1,45 @@
 workflows:
-  react-native-build:
-    name: React Native Build
+  ios-build:
+    name: iOS IPA Build
     instance_type: mac_mini_m2
     max_build_duration: 60
 
     environment:
+      groups:
+        - ios_signing
       node: 18.16.0
       xcode: latest
       cocoapods: default
-      groups:
-        - env_group
-
-    cache:
-      cache_paths:
-        - ~/.gradle
-        - ~/.npm
-        - node_modules
-
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: '*'
-          include: true
-          source: true
 
     scripts:
-      - echo "Installing dependencies"
-      - npm install
-      - cd ios && pod install && cd ..
-      - echo "Building Android release"
-      - cd android && ./gradlew assembleRelease
+      - name: Install dependencies
+        script: |
+          npm install
+          cd ios
+          pod install
+          cd ..
+
+      - name: Decode signing files
+        script: |
+          echo $DISTRIBUTION_CERTIFICATE | base64 --decode > certificate.p12
+          echo $PROVISIONING_PROFILE | base64 --decode > profile.mobileprovision
+
+      - name: Set up keychain and code signing
+        script: |
+          keychain initialize
+          keychain add-certificates --certificate certificate.p12 --certificate-password $CERTIFICATE_PASSWORD
+          app-store-connect fetch-signing-files "com.your.bundle.id" --platform IOS --type IOS_APP_STORE
+          xcode-project use-profiles
+
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "ios/YourApp.xcworkspace" \
+            --scheme "YourApp" \
+            --archive-path "$CM_BUILD_DIR/YourApp.xcarchive"
 
     artifacts:
-      - android/app/build/outputs/**/*.apk
-      - android/app/build/outputs/**/*.aab
+      - build/ios/ipa/*.ipa
 
     publishing:
       email:
