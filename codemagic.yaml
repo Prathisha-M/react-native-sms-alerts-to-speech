@@ -5,18 +5,16 @@ workflows:
     max_build_duration: 60
 
     environment:
-      groups:
-        - API_KEY
-      vars:
-        PUBLIC_ENV_VAR: "value here"
-      node: 20.18.0
+      node: 18.16.0
       xcode: latest
       cocoapods: default
+      groups:
+        - env_group
 
     cache:
       cache_paths:
         - ~/.gradle
-        - ~/.pub-cache
+        - ~/.npm
         - node_modules
 
     triggering:
@@ -26,26 +24,19 @@ workflows:
         - pattern: '*'
           include: true
           source: true
-      cancel_previous_builds: true
 
     scripts:
       - echo "Installing dependencies"
       - npm install
       - cd ios && pod install && cd ..
-      - echo "Building Android app"
-      - npx react-native run-android --variant=release
-      - echo "Building iOS app"
-      - xcodebuild -workspace ios/PayGuard.xcworkspace -scheme PayGuard -sdk iphoneos -configuration Release archive -archivePath $PWD/build/PayGuard.xcarchive
-      - xcodebuild -exportArchive -archivePath $PWD/build/PayGuard.xcarchive -exportOptionsPlist ios/exportOptions.plist -exportPath $PWD/build/PayGuard
+      - echo "Building Android release"
+      - cd android && ./gradlew assembleRelease
 
     artifacts:
-      - build/**/*.aab
-      - build/PayGuard/*.ipa
-      - build/PayGuard/**/*.app
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
 
     publishing:
       email:
         recipients:
           - mprathisha2@gmail.com
-      scripts:
-        - echo 'Post-publish script completed'
